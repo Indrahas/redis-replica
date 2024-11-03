@@ -1,7 +1,4 @@
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -22,7 +19,30 @@ public class Main {
           // Wait for connection from client.
           clientSocket = serverSocket.accept();
         OutputStream outputStream = clientSocket.getOutputStream();
-        outputStream.write("+PONG\r\n".getBytes());
+//            InputStreamReader isr
+//                    =  new InputStreamReader(clientSocket.getInputStream());
+//            BufferedReader reader = new BufferedReader(isr);
+//            String line = reader.readLine();
+//            while (!line.isEmpty()) {
+//                System.out.println(line);
+//                outputStream.write("+PONG\r\n".getBytes());
+//                line = reader.readLine();
+//
+//            }
+//            System.out.println("connection successful");
+            InputStream inputStream = clientSocket.getInputStream();
+//            System.out.println(inputStream.available());
+            byte[] lol;
+            while(1 == 1){
+//                System.out.println("HAI 1");
+                lol= inputStream.readNBytes(14);
+//                System.out.println(inputStream.available());
+//                System.out.println("HAI");
+//                OutputStream outputStream = clientSocket.getOutputStream();
+                outputStream.write("+PONG\r\n".getBytes());
+            }
+//            System.out.println(inputStream.available());
+
         } catch (IOException e) {
           System.out.println("IOException: " + e.getMessage());
         } finally {

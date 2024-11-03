@@ -1,7 +1,6 @@
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.Socket;
+import java.util.Arrays;
 
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
@@ -13,12 +12,28 @@ public class HandleClientThread extends Thread {
         try {
             outputStream = this.clientSocket.getOutputStream();
             InputStream inputStream = this.clientSocket.getInputStream();
+
             byte[] lol;
             while(true){
-                lol= inputStream.readNBytes(14);
-                outputStream.write("+PONG\r\n".getBytes());
+
+                if(inputStream.available() != 0){
+
+                    lol = inputStream.readNBytes(inputStream.available());
+
+                    String string = new String(lol);
+                    if(string.isEmpty()) continue;
+                    RedisProto redisProto = new RedisProto();
+                    String[] command = redisProto.Decode(string);
+
+                    if(command[0].equals("PING")){
+                        outputStream.write("+PONG\r\n".getBytes());
+                    }
+                    else if(command[0].equals("ECHO")){
+                        outputStream.write(("+"+command[1]+"\r\n").getBytes());
+                    }
+                }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }

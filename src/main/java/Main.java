@@ -3,6 +3,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class Main {
+
   public static void main(String[] args){
     // You can use print statements as follows for debugging, they'll be visible when running tests.
 //    System.out.println("Logs from your program will appear here!");
@@ -12,36 +13,19 @@ public class Main {
         Socket clientSocket = null;
         int port = 6379;
         try {
-          serverSocket = new ServerSocket(port);
-          // Since the tester restarts your program quite often, setting SO_REUSEADDR
-          // ensures that we don't run into 'Address already in use' errors
-          serverSocket.setReuseAddress(true);
-          // Wait for connection from client.
-          clientSocket = serverSocket.accept();
-        OutputStream outputStream = clientSocket.getOutputStream();
-//            InputStreamReader isr
-//                    =  new InputStreamReader(clientSocket.getInputStream());
-//            BufferedReader reader = new BufferedReader(isr);
-//            String line = reader.readLine();
-//            while (!line.isEmpty()) {
-//                System.out.println(line);
-//                outputStream.write("+PONG\r\n".getBytes());
-//                line = reader.readLine();
-//
-//            }
-//            System.out.println("connection successful");
-            InputStream inputStream = clientSocket.getInputStream();
-//            System.out.println(inputStream.available());
-            byte[] lol;
-            while(1 == 1){
-//                System.out.println("HAI 1");
-                lol= inputStream.readNBytes(14);
-//                System.out.println(inputStream.available());
-//                System.out.println("HAI");
-//                OutputStream outputStream = clientSocket.getOutputStream();
-                outputStream.write("+PONG\r\n".getBytes());
+            serverSocket = new ServerSocket(port);
+            // Since the tester restarts your program quite often, setting SO_REUSEADDR
+            // ensures that we don't run into 'Address already in use' errors
+            serverSocket.setReuseAddress(true);
+            // Wait for connection from client.
+            while(true){
+                try{
+                    clientSocket = serverSocket.accept();
+                    new HandleClientThread(clientSocket).start();
+                }catch (IOException e){
+                    System.out.println("I/O error: " + e);
+                }
             }
-//            System.out.println(inputStream.available());
 
         } catch (IOException e) {
           System.out.println("IOException: " + e.getMessage());

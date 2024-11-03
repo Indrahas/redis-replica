@@ -1,9 +1,12 @@
 import java.io.*;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
+    Map<String, String> redisDict = new HashMap<String, String>();
     public HandleClientThread(Socket clientSocket){
         this.clientSocket = clientSocket;
     }
@@ -30,6 +33,22 @@ public class HandleClientThread extends Thread {
                     }
                     else if(command[0].equals("ECHO")){
                         outputStream.write(("+"+command[1]+"\r\n").getBytes());
+                    }
+                    else if(command[0].equals("SET")){
+                        String key = command[1];
+                        String value = command[2];
+                        this.redisDict.put(key, value);
+                        outputStream.write(("+OK\r\n").getBytes());
+                    }
+                    else if(command[0].equals("GET")){
+                        String key = command[1];
+                        if(this.redisDict.containsKey(key)){
+                            outputStream.write(("+"+this.redisDict.get(key)+"\r\n").getBytes());
+                        }
+                        else{
+                            outputStream.write(("$-1\r\n").getBytes());
+                        }
+
                     }
                 }
             }

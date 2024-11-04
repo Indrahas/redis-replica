@@ -22,11 +22,9 @@ public class HandleClientThread extends Thread {
         this.clientSocket = clientSocket;
         configParams.put("dir", dir);
         configParams.put("dbfilename", dbname);
+        readRdbFile();
     }
     private void setRedisDict(String key, String value, String expiry){
-//        String expiry;
-//        if(command.length > 3)  expiry = command[4];
-//        else  expiry = String.valueOf(Integer.MAX_VALUE);
         String curTime = Instant.now().toString();
         List<String> values = new ArrayList<>(List.of());
         values.add(value);
@@ -39,58 +37,60 @@ public class HandleClientThread extends Thread {
         System.out.println(path);
         File file = new File(configParams.get("dir")+"/"+configParams.get("dbfilename"));
         System.out.println(file.exists());
-        try {
-            RdbParser parser = new RdbParser(file);
-            Entry e;
-//            parser.
-            while ((e = parser.readNext()) != null) {
-                switch (e.getType()) {
+        if(file.exists()){
+            try {
+                RdbParser parser = new RdbParser(file);
+                Entry e;
+                while ((e = parser.readNext()) != null) {
+                    switch (e.getType()) {
 
-                    case SELECT_DB:
-                        System.out.println("Processing DB: " + ((SelectDb)e).getId());
-                        System.out.println("------------");
-                        break;
+                        case SELECT_DB:
+                            System.out.println("Processing DB: " + ((SelectDb)e).getId());
+                            System.out.println("------------");
+                            break;
 
-                    case EOF:
-                        System.out.print("End of file. Checksum: ");
-                        for (byte b : ((Eof)e).getChecksum()) {
-                            System.out.print(String.format("%02x", b & 0xff));
-                        }
-                        System.out.println();
-                        System.out.println("------------");
-                        break;
+                        case EOF:
+                            System.out.print("End of file. Checksum: ");
+                            for (byte b : ((Eof)e).getChecksum()) {
+                                System.out.print(String.format("%02x", b & 0xff));
+                            }
+                            System.out.println();
+                            System.out.println("------------");
+                            break;
 
-                    case KEY_VALUE_PAIR:
-                        System.out.println("Key value pair");
-                        KeyValuePair kvp = (KeyValuePair)e;
-                        String key = new String(kvp.getKey(), "ASCII");
-                        System.out.println("Key: " + key);
-                        Long expireTime = kvp.getExpireTime();
-                        String strExpireTime;
-                        if (expireTime != null) {
-                            System.out.println("Expire time (ms): " + expireTime);
-                            strExpireTime = expireTime.toString();
-                        }
-                        else strExpireTime = String.valueOf(Integer.MAX_VALUE);
+                        case KEY_VALUE_PAIR:
+                            System.out.println("Key value pair");
+                            KeyValuePair kvp = (KeyValuePair)e;
+                            String key = new String(kvp.getKey(), "ASCII");
+                            System.out.println("Key: " + key);
+                            Long expireTime = kvp.getExpireTime();
+                            String strExpireTime;
+                            if (expireTime != null) {
+                                System.out.println("Expire time (ms): " + expireTime);
+                                strExpireTime = expireTime.toString();
+                            }
+                            else strExpireTime = String.valueOf(Integer.MAX_VALUE);
 
-                        System.out.println("Value type: " + kvp.getValueType());
-                        System.out.print("Values: ");
-                        String strValue = "";
-                        for (byte[] val : kvp.getValues()) {
-                            strValue = new String(val, "ASCII");
-                            System.out.print( strValue + " ");
-                        }
-                        setRedisDict(key, strValue, strExpireTime);
-                        System.out.println();
-                        System.out.println("------------");
-                        break;
+                            System.out.println("Value type: " + kvp.getValueType());
+                            System.out.print("Values: ");
+                            String strValue = "";
+                            for (byte[] val : kvp.getValues()) {
+                                strValue = new String(val, "ASCII");
+                                System.out.print( strValue + " ");
+                            }
+                            setRedisDict(key, strValue, strExpireTime);
+                            System.out.println();
+                            System.out.println("------------");
+                            break;
+                    }
                 }
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
+
 
     }
     public void run() {
@@ -136,7 +136,8 @@ public class HandleClientThread extends Thread {
                             long expiryDuration = Integer.parseInt(values.get(2));
 
                             if(timeElapsed.toMillis() <= expiryDuration){
-                                outputStream.write(("+"+values.getFirst()+"\r\n").getBytes());
+//                                outputStream.write(("+"+values.getFirst()+"\r\n").getBytes());
+                                outputStream.write((RedisProto.Encode(values.getFirst())+"\r\n").getBytes());
                             }
                             else{
                                 outputStream.write(("$-1\r\n").getBytes());
@@ -153,12 +154,10 @@ public class HandleClientThread extends Thread {
                             String[] response = new String[2];
                             response[0] = paramKey;
                             response[1] = paramValue;
-//                            String out = RedisProto.Encode(response);
                             outputStream.write(RedisProto.Encode(response).getBytes());
                         }
                     }
                     else if(command[0].equals("KEYS")){
-                        readRdbFile();
                         String pattern = command[1];
                         PathMatcher matcher =
                                 FileSystems.getDefault().getPathMatcher("glob:" + pattern);

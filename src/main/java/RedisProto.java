@@ -15,7 +15,7 @@ public class RedisProto {
         for(Integer I = 1; I <= Request.length; ++I){
             ToReturn[I] = RedisProto.Encode(Request[I - 1]);
         }
-        return String.join("\r\n", ToReturn);
+        return String.join("\r\n", ToReturn) + "\r\n";
     }
     public static String Encode(String Request){
         return "$" + Request.length() + "\r\n" + Request;

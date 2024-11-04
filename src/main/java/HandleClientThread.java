@@ -69,7 +69,7 @@ public class HandleClientThread extends Thread {
                                 System.out.println("Expire time (ms): " + expireTime);
                                 strExpireTime = expireTime.toString();
                             }
-                            else strExpireTime = String.valueOf(Integer.MAX_VALUE);
+                            else strExpireTime = String.valueOf(Long.MAX_VALUE);
 
                             System.out.println("Value type: " + kvp.getValueType());
                             System.out.print("Values: ");
@@ -121,8 +121,12 @@ public class HandleClientThread extends Thread {
                         String key = command[1];
                         String value = command[2];
                         String expiry;
-                        if(command.length > 3)  expiry = command[4];
-                        else  expiry = String.valueOf(Integer.MAX_VALUE);
+
+                        if(command.length > 3){
+                            Long expiryTime = Instant.now().toEpochMilli() + Long.parseLong(command[4]);
+                            expiry = String.valueOf(expiryTime);
+                        }
+                        else  expiry = String.valueOf(Long.MAX_VALUE);
                         setRedisDict(key, value, expiry);
                         outputStream.write(("+OK\r\n").getBytes());
                     }
@@ -133,15 +137,17 @@ public class HandleClientThread extends Thread {
                             List<String> values = this.redisDict.get(key);
                             Instant startTime = Instant.parse(values.get(1));
                             Duration timeElapsed = Duration.between(startTime, now);
-                            long expiryDuration = Integer.parseInt(values.get(2));
-
-                            if(timeElapsed.toMillis() <= expiryDuration){
+                            long expiryDuration = Long.parseLong(values.get(2));
+//
+                            if(Instant.now().toEpochMilli() <= expiryDuration){
 //                                outputStream.write(("+"+values.getFirst()+"\r\n").getBytes());
                                 outputStream.write((RedisProto.Encode(values.getFirst())+"\r\n").getBytes());
                             }
                             else{
                                 outputStream.write(("$-1\r\n").getBytes());
                             }
+
+
                         }
                         else{
                             outputStream.write(("$-1\r\n").getBytes());

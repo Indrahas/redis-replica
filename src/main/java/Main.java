@@ -21,7 +21,13 @@ public class Main {
             while(true){
                 try{
                     clientSocket = serverSocket.accept();
-                    new HandleClientThread(clientSocket).start();
+                    if(args.length == 0){
+                        new HandleClientThread(clientSocket).start();
+                    }
+                    else{
+                        new HandleClientThread(clientSocket, args[1], args[3]).start();
+                    }
+
                 }catch (IOException e){
                     System.out.println("I/O error: " + e);
                 }

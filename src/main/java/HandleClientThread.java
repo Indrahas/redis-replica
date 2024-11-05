@@ -204,6 +204,10 @@ public class HandleClientThread extends Thread {
                             String output = RedisProto.Encode("OK") + "\r\n";
                             outputStream.write(output.getBytes());
                         }
+                        case "PSYNC" -> {
+                            String output = "+FULLRESYNC " + configParams.get("replId") + " "+ configParams.get("replOffset")+ "\r\n";
+                            outputStream.write(output.getBytes());
+                        }
                     }
 
                 }

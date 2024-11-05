@@ -49,6 +49,26 @@ public class HandleClientThread extends Thread {
         readRdbFile();
     }
 
+    private String hexToBin(String hex){
+        hex = hex.replaceAll("0", "0000");
+        hex = hex.replaceAll("1", "0001");
+        hex = hex.replaceAll("2", "0010");
+        hex = hex.replaceAll("3", "0011");
+        hex = hex.replaceAll("4", "0100");
+        hex = hex.replaceAll("5", "0101");
+        hex = hex.replaceAll("6", "0110");
+        hex = hex.replaceAll("7", "0111");
+        hex = hex.replaceAll("8", "1000");
+        hex = hex.replaceAll("9", "1001");
+        hex = hex.replaceAll("A", "1010");
+        hex = hex.replaceAll("B", "1011");
+        hex = hex.replaceAll("C", "1100");
+        hex = hex.replaceAll("D", "1101");
+        hex = hex.replaceAll("E", "1110");
+        hex = hex.replaceAll("F", "1111");
+        return hex;
+    }
+
     private void setRedisDict(String key, String value, String expiry){
         String curTime = Instant.now().toString();
         List<String> values = new ArrayList<>(List.of());
@@ -207,6 +227,11 @@ public class HandleClientThread extends Thread {
                         case "PSYNC" -> {
                             String output = "+FULLRESYNC " + configParams.get("replId") + " "+ configParams.get("replOffset")+ "\r\n";
                             outputStream.write(output.getBytes());
+//                            output = hexToBin("524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2");
+                            byte[] rdbFileContent = HexFormat.of().parseHex(
+                                    "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2");
+                            outputStream.write(("$"+rdbFileContent.length+"\r\n").getBytes());
+                            outputStream.write(rdbFileContent);
                         }
                     }
 

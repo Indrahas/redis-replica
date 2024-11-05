@@ -117,21 +117,12 @@ public class HandleClientThread extends Thread {
         }
     }
 
-//    private void sendHandshake() {
-
-
-//    }
-
     public void run() {
         OutputStream outputStream = null;
         RedisProto redisProto = new RedisProto();
         try {
             outputStream = this.clientSocket.getOutputStream();
             InputStream inputStream = this.clientSocket.getInputStream();
-
-//            if(configParams.get("role").equals("slave")){
-//
-//            }
 
             byte[] inData;
             while(true){
@@ -207,6 +198,10 @@ public class HandleClientThread extends Thread {
                             info.add("master_repl_offset" + ":" + configParams.get("replOffset"));
 
                             String output = RedisProto.Encode(String.join("", info.toArray(new String[0]))) + "\r\n";
+                            outputStream.write(output.getBytes());
+                        }
+                        case "REPLCONF" -> {
+                            String output = RedisProto.Encode("OK") + "\r\n";
                             outputStream.write(output.getBytes());
                         }
                     }

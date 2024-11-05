@@ -24,6 +24,25 @@ public class HandleClientThread extends Thread {
         configParams.put("dbfilename", dbname);
         readRdbFile();
     }
+
+    public HandleClientThread(Socket clientSocket, String[] args) {
+        this.clientSocket = clientSocket;
+        int numArgs = args.length;
+        int curArgIdx = 0;
+        while (curArgIdx < numArgs){
+            switch (args[curArgIdx]){
+                case "--dir":
+                    configParams.put("dir", args[curArgIdx+1]);
+                    break;
+                case "--dbfilename":
+                    configParams.put("dbfilename", args[curArgIdx+1]);
+                    break;
+            }
+            curArgIdx+=2;
+        }
+        readRdbFile();
+    }
+
     private void setRedisDict(String key, String value, String expiry){
         String curTime = Instant.now().toString();
         List<String> values = new ArrayList<>(List.of());
@@ -146,9 +165,8 @@ public class HandleClientThread extends Thread {
                             else{
                                 outputStream.write(("$-1\r\n").getBytes());
                             }
-
-
                         }
+
                         else{
                             outputStream.write(("$-1\r\n").getBytes());
                         }

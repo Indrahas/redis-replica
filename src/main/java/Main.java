@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Arrays;
 
 public class Main {
 
@@ -12,6 +13,10 @@ public class Main {
         ServerSocket serverSocket = null;
         Socket clientSocket = null;
         int port = 6379;
+        int portIdx = Arrays.asList(args).indexOf("--port");
+        if(portIdx != -1){
+            port = Integer.parseInt(args[portIdx+1]);
+        }
         try {
             serverSocket = new ServerSocket(port);
             // Since the tester restarts your program quite often, setting SO_REUSEADDR
@@ -21,12 +26,13 @@ public class Main {
             while(true){
                 try{
                     clientSocket = serverSocket.accept();
-                    if(args.length == 0){
-                        new HandleClientThread(clientSocket).start();
-                    }
-                    else{
-                        new HandleClientThread(clientSocket, args[1], args[3]).start();
-                    }
+                    new HandleClientThread(clientSocket, args).start();
+//                    if(args.length == 0){
+//                        new HandleClientThread(clientSocket).start();
+//                    }
+//                    else{
+//                        new HandleClientThread(clientSocket, args[1], args[3]).start();
+//                    }
 
                 }catch (IOException e){
                     System.out.println("I/O error: " + e);

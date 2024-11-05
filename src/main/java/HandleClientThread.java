@@ -8,7 +8,6 @@ import java.nio.file.PathMatcher;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.regex.Pattern;
 
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
@@ -116,9 +115,13 @@ public class HandleClientThread extends Thread {
                 throw new RuntimeException(e);
             }
         }
-
-
     }
+
+//    private void sendHandshake() {
+
+
+//    }
+
     public void run() {
         OutputStream outputStream = null;
         RedisProto redisProto = new RedisProto();
@@ -126,95 +129,94 @@ public class HandleClientThread extends Thread {
             outputStream = this.clientSocket.getOutputStream();
             InputStream inputStream = this.clientSocket.getInputStream();
 
-            byte[] lol;
+//            if(configParams.get("role").equals("slave")){
+//
+//            }
+
+            byte[] inData;
             while(true){
 
                 if(inputStream.available() != 0){
 
-                    lol = inputStream.readNBytes(inputStream.available());
+                    inData = inputStream.readNBytes(inputStream.available());
 
-                    String string = new String(lol);
+                    String string = new String(inData);
                     if(string.isEmpty()) continue;
                     String[] command = redisProto.Decode(string);
 
-                    if(command[0].equals("PING")){
-                        outputStream.write("+PONG\r\n".getBytes());
-                    }
-                    else if(command[0].equals("ECHO")){
-                        outputStream.write(("+"+command[1]+"\r\n").getBytes());
-                    }
-                    else if(command[0].equals("SET")){
-                        String key = command[1];
-                        String value = command[2];
-                        String expiry;
+                    switch (command[0]) {
+                        case "PING" -> outputStream.write("+PONG\r\n".getBytes());
+                        case "ECHO" -> outputStream.write(("+" + command[1] + "\r\n").getBytes());
+                        case "SET" -> {
+                            String key = command[1];
+                            String value = command[2];
+                            String expiry;
 
-                        if(command.length > 3){
-                            Long expiryTime = Instant.now().toEpochMilli() + Long.parseLong(command[4]);
-                            expiry = String.valueOf(expiryTime);
+                            if (command.length > 3) {
+                                Long expiryTime = Instant.now().toEpochMilli() + Long.parseLong(command[4]);
+                                expiry = String.valueOf(expiryTime);
+                            } else expiry = String.valueOf(Long.MAX_VALUE);
+                            setRedisDict(key, value, expiry);
+                            outputStream.write(("+OK\r\n").getBytes());
                         }
-                        else  expiry = String.valueOf(Long.MAX_VALUE);
-                        setRedisDict(key, value, expiry);
-                        outputStream.write(("+OK\r\n").getBytes());
-                    }
-                    else if(command[0].equals("GET")){
-                        String key = command[1];
-                        Instant now = Instant.now();
-                        if(this.redisDict.containsKey(key)){
-                            List<String> values = this.redisDict.get(key);
-                            Instant startTime = Instant.parse(values.get(1));
-                            Duration timeElapsed = Duration.between(startTime, now);
-                            long expiryDuration = Long.parseLong(values.get(2));
-//
-                            if(Instant.now().toEpochMilli() <= expiryDuration){
-//                                outputStream.write(("+"+values.getFirst()+"\r\n").getBytes());
-                                outputStream.write((RedisProto.Encode(values.getFirst())+"\r\n").getBytes());
-                            }
-                            else{
+                        case "GET" -> {
+                            String key = command[1];
+                            Instant now = Instant.now();
+                            if (this.redisDict.containsKey(key)) {
+                                List<String> values = this.redisDict.get(key);
+                                Instant startTime = Instant.parse(values.get(1));
+                                Duration timeElapsed = Duration.between(startTime, now);
+                                long expiryDuration = Long.parseLong(values.get(2));
+                                if (Instant.now().toEpochMilli() <= expiryDuration) {
+                                    outputStream.write((RedisProto.Encode(values.getFirst()) + "\r\n").getBytes());
+                                } else {
+                                    outputStream.write(("$-1\r\n").getBytes());
+                                }
+                            } else {
                                 outputStream.write(("$-1\r\n").getBytes());
                             }
                         }
-
-                        else{
-                            outputStream.write(("$-1\r\n").getBytes());
-                        }
-                    }
-                    else if(command[0].equals("CONFIG")){
-                        if(command[1].equals("GET")){
-                            String paramKey = command[2];
-                            String paramValue = configParams.get(paramKey);
-                            String[] response = new String[2];
-                            response[0] = paramKey;
-                            response[1] = paramValue;
-                            outputStream.write(RedisProto.Encode(response).getBytes());
-                        }
-                    }
-                    else if(command[0].equals("KEYS")){
-                        String pattern = command[1];
-                        PathMatcher matcher =
-                                FileSystems.getDefault().getPathMatcher("glob:" + pattern);
-                        List<String> keys = new ArrayList<>(List.of());
-                        for(Object key : redisDict.keySet()){
-
-                            if( matcher.matches( Path.of(key.toString()) ) ){
-                                keys.add( key.toString() );
+                        case "CONFIG" -> {
+                            if (command[1].equals("GET")) {
+                                String paramKey = command[2];
+                                String paramValue = configParams.get(paramKey);
+                                String[] response = new String[2];
+                                response[0] = paramKey;
+                                response[1] = paramValue;
+                                outputStream.write(RedisProto.Encode(response).getBytes());
                             }
                         }
-                        String output = redisProto.Encode(keys.toArray(new String[0]));
-                        outputStream.write(output.getBytes());
-                    }
-                    else if(command[0].equals("INFO")){
-                        List<String> info = new ArrayList<>(List.of());
-                        info.add("role" + ":" + configParams.get("role"));
-                        info.add("master_replid" + ":" + configParams.get("replId"));
-                        info.add("master_repl_offset" + ":" + configParams.get("replOffset"));
+                        case "KEYS" -> {
+                            String pattern = command[1];
+                            PathMatcher matcher =
+                                    FileSystems.getDefault().getPathMatcher("glob:" + pattern);
+                            List<String> keys = new ArrayList<>(List.of());
+                            for (Object key : redisDict.keySet()) {
 
-                        String output = RedisProto.Encode( String.join("",info.toArray(new String[0])) )+"\r\n";
-                        outputStream.write(output.getBytes());
+                                if (matcher.matches(Path.of(key.toString()))) {
+                                    keys.add(key.toString());
+                                }
+                            }
+                            String output = redisProto.Encode(keys.toArray(new String[0]));
+                            outputStream.write(output.getBytes());
+                        }
+                        case "INFO" -> {
+                            List<String> info = new ArrayList<>(List.of());
+                            info.add("role" + ":" + configParams.get("role"));
+                            info.add("master_replid" + ":" + configParams.get("replId"));
+                            info.add("master_repl_offset" + ":" + configParams.get("replOffset"));
+
+                            String output = RedisProto.Encode(String.join("", info.toArray(new String[0]))) + "\r\n";
+                            outputStream.write(output.getBytes());
+                        }
                     }
+
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
+
+
 }

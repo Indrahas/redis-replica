@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.List;
 
 public class Main {
 
@@ -17,6 +18,10 @@ public class Main {
         if(portIdx != -1){
             port = Integer.parseInt(args[portIdx+1]);
         }
+        int masterIpIdx = Arrays.asList(args).indexOf("--replicaof");
+        if(masterIpIdx != -1){
+            sendMasterHandshake(args[masterIpIdx+1]);
+        }
         try {
             serverSocket = new ServerSocket(port);
             // Since the tester restarts your program quite often, setting SO_REUSEADDR
@@ -27,12 +32,6 @@ public class Main {
                 try{
                     clientSocket = serverSocket.accept();
                     new HandleClientThread(clientSocket, args).start();
-//                    if(args.length == 0){
-//                        new HandleClientThread(clientSocket).start();
-//                    }
-//                    else{
-//                        new HandleClientThread(clientSocket, args[1], args[3]).start();
-//                    }
 
                 }catch (IOException e){
                     System.out.println("I/O error: " + e);
@@ -52,4 +51,17 @@ public class Main {
           }
         }
   }
+
+    private static void sendMasterHandshake(String arg) {
+        String[] ipInfo = arg.split(" ");
+        try {
+            Socket socket = new Socket(ipInfo[0], Integer.parseInt(ipInfo[1]));
+            OutputStream outputStream = socket.getOutputStream();
+            List<String> commands = new java.util.ArrayList<>(List.of());
+            commands.add("PING");
+            outputStream.write( RedisProto.Encode(commands.toArray(new String[0])).getBytes() );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

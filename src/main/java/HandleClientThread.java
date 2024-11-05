@@ -195,6 +195,12 @@ public class HandleClientThread extends Thread {
                         String output = redisProto.Encode(keys.toArray(new String[0]));
                         outputStream.write(output.getBytes());
                     }
+                    else if(command[0].equals("INFO")){
+                        List<String> info = new ArrayList<>(List.of());
+                        info.add("role" + ":" + "master");
+                        String output = RedisProto.Encode(info.getFirst())+"\r\n";
+                        outputStream.write(output.getBytes());
+                    }
                 }
             }
         } catch (Exception e) {

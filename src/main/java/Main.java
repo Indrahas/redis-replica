@@ -77,6 +77,13 @@ public class Main {
             outputStream.write( RedisProto.Encode(commands.toArray(new String[0])).getBytes() );
             printMasterResponse(inputStream);
             commands.clear();
+
+            commands.add("PSYNC");
+            commands.add("?");
+            commands.add("-1");
+            outputStream.write( RedisProto.Encode(commands.toArray(new String[0])).getBytes() );
+            printMasterResponse(inputStream);
+            commands.clear();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

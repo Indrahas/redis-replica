@@ -30,6 +30,8 @@ public class HandleClientThread extends Thread {
         int numArgs = args.length;
         int curArgIdx = 0;
         configParams.put("role", "master");
+        configParams.put("replId", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb");
+        configParams.put("replOffset", "0");
         while (curArgIdx < numArgs){
             switch (args[curArgIdx]){
                 case "--dir":
@@ -203,7 +205,10 @@ public class HandleClientThread extends Thread {
                     else if(command[0].equals("INFO")){
                         List<String> info = new ArrayList<>(List.of());
                         info.add("role" + ":" + configParams.get("role"));
-                        String output = RedisProto.Encode(info.getFirst())+"\r\n";
+                        info.add("master_replid" + ":" + configParams.get("replId"));
+                        info.add("master_repl_offset" + ":" + configParams.get("replOffset"));
+
+                        String output = RedisProto.Encode( String.join("",info.toArray(new String[0])) )+"\r\n";
                         outputStream.write(output.getBytes());
                     }
                 }

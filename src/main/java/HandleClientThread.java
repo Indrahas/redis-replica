@@ -29,6 +29,7 @@ public class HandleClientThread extends Thread {
         this.clientSocket = clientSocket;
         int numArgs = args.length;
         int curArgIdx = 0;
+        configParams.put("role", "master");
         while (curArgIdx < numArgs){
             switch (args[curArgIdx]){
                 case "--dir":
@@ -36,6 +37,10 @@ public class HandleClientThread extends Thread {
                     break;
                 case "--dbfilename":
                     configParams.put("dbfilename", args[curArgIdx+1]);
+                    break;
+                case "--replicaof":
+                    configParams.put("role", "slave");
+                    configParams.put("replicaOf", args[curArgIdx+1]);
                     break;
             }
             curArgIdx+=2;
@@ -197,7 +202,7 @@ public class HandleClientThread extends Thread {
                     }
                     else if(command[0].equals("INFO")){
                         List<String> info = new ArrayList<>(List.of());
-                        info.add("role" + ":" + "master");
+                        info.add("role" + ":" + configParams.get("role"));
                         String output = RedisProto.Encode(info.getFirst())+"\r\n";
                         outputStream.write(output.getBytes());
                     }

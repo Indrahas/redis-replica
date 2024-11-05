@@ -12,17 +12,8 @@ import java.util.*;
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
     HashMap<Object, List<String>> redisDict = new HashMap<Object, List<String>>();
-    static HashMap<String, String> configParams = new HashMap<String, String>();
-    public HandleClientThread(Socket clientSocket){
-
-        this.clientSocket = clientSocket;
-    }
-    public HandleClientThread(Socket clientSocket, String dir, String dbname){
-        this.clientSocket = clientSocket;
-        configParams.put("dir", dir);
-        configParams.put("dbfilename", dbname);
-        readRdbFile();
-    }
+    HashMap<String, String> configParams = new HashMap<String, String>();
+    static ArrayList<Socket> slaveSockets = new ArrayList<>();
 
     public HandleClientThread(Socket clientSocket, String[] args) {
         this.clientSocket = clientSocket;
@@ -47,26 +38,6 @@ public class HandleClientThread extends Thread {
             curArgIdx+=2;
         }
         readRdbFile();
-    }
-
-    private String hexToBin(String hex){
-        hex = hex.replaceAll("0", "0000");
-        hex = hex.replaceAll("1", "0001");
-        hex = hex.replaceAll("2", "0010");
-        hex = hex.replaceAll("3", "0011");
-        hex = hex.replaceAll("4", "0100");
-        hex = hex.replaceAll("5", "0101");
-        hex = hex.replaceAll("6", "0110");
-        hex = hex.replaceAll("7", "0111");
-        hex = hex.replaceAll("8", "1000");
-        hex = hex.replaceAll("9", "1001");
-        hex = hex.replaceAll("A", "1010");
-        hex = hex.replaceAll("B", "1011");
-        hex = hex.replaceAll("C", "1100");
-        hex = hex.replaceAll("D", "1101");
-        hex = hex.replaceAll("E", "1110");
-        hex = hex.replaceAll("F", "1111");
-        return hex;
     }
 
     private void setRedisDict(String key, String value, String expiry){
@@ -168,8 +139,11 @@ public class HandleClientThread extends Thread {
                                 expiry = String.valueOf(expiryTime);
                             } else expiry = String.valueOf(Long.MAX_VALUE);
                             setRedisDict(key, value, expiry);
-                            outputStream.write(("+OK\r\n").getBytes());
+                            if(configParams.get("role").equals("master")){
+                                outputStream.write(("+OK\r\n").getBytes());
+                            }
                         }
+
                         case "GET" -> {
                             String key = command[1];
                             Instant now = Instant.now();
@@ -194,7 +168,10 @@ public class HandleClientThread extends Thread {
                                 String[] response = new String[2];
                                 response[0] = paramKey;
                                 response[1] = paramValue;
-                                outputStream.write(RedisProto.Encode(response).getBytes());
+//                                if(configParams.get("role").equals("master")){
+                                    outputStream.write(RedisProto.Encode(response).getBytes());
+//                                }
+
                             }
                         }
                         case "KEYS" -> {
@@ -208,8 +185,11 @@ public class HandleClientThread extends Thread {
                                     keys.add(key.toString());
                                 }
                             }
-                            String output = redisProto.Encode(keys.toArray(new String[0]));
-                            outputStream.write(output.getBytes());
+//                            if(configParams.get("role").equals("master")){
+                                String output = redisProto.Encode(keys.toArray(new String[0]));
+                                outputStream.write(output.getBytes());
+//                            }
+
                         }
                         case "INFO" -> {
                             List<String> info = new ArrayList<>(List.of());
@@ -217,8 +197,10 @@ public class HandleClientThread extends Thread {
                             info.add("master_replid" + ":" + configParams.get("replId"));
                             info.add("master_repl_offset" + ":" + configParams.get("replOffset"));
 
-                            String output = RedisProto.Encode(String.join("", info.toArray(new String[0]))) + "\r\n";
-                            outputStream.write(output.getBytes());
+//                            if(configParams.get("role").equals("master")){
+                                String output = RedisProto.Encode(String.join("", info.toArray(new String[0]))) + "\r\n";
+                                outputStream.write(output.getBytes());
+//                            }
                         }
                         case "REPLCONF" -> {
                             String output = RedisProto.Encode("OK") + "\r\n";
@@ -227,12 +209,29 @@ public class HandleClientThread extends Thread {
                         case "PSYNC" -> {
                             String output = "+FULLRESYNC " + configParams.get("replId") + " "+ configParams.get("replOffset")+ "\r\n";
                             outputStream.write(output.getBytes());
-//                            output = hexToBin("524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2");
                             byte[] rdbFileContent = HexFormat.of().parseHex(
                                     "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2");
                             outputStream.write(("$"+rdbFileContent.length+"\r\n").getBytes());
                             outputStream.write(rdbFileContent);
+                            slaveSockets.add(clientSocket);
+//                            String slaveIp = clientSocket.getInetAddress().getHostAddress()+"__"+clientSocket.getPort();
+//                            slaveIpInfo.add(slaveIp);
+//                            System.out.println(slaveIp);
                         }
+                    }
+
+                    //If you are master, then send write commands to slave
+                    if(configParams.get("role").equals("master")){
+                        ArrayList<String> allowedCommands = new ArrayList<>();
+                        allowedCommands.add("SET");
+                        if(allowedCommands.contains(command[0]) && (!slaveSockets.isEmpty())){
+                            for(Socket slaveSocket: slaveSockets){
+                                InputStream replicaInputStream = slaveSocket.getInputStream();
+                                OutputStream replicaOutputStream = slaveSocket.getOutputStream();
+                                replicaOutputStream.write(inData);
+                            }
+                        }
+
                     }
 
                 }

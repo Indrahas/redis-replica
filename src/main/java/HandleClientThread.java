@@ -12,7 +12,7 @@ import java.util.*;
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
     static HashMap<Object, List<String>> redisDict = new HashMap<Object, List<String>>();
-    static LinkedHashMap<String, HashMap<String, String>> redisStreamData = new LinkedHashMap<String, HashMap<String, String>>();
+    static LinkedHashMap<String, LinkedHashMap<String, String>> redisStreamData = new LinkedHashMap<String, LinkedHashMap<String, String>>();
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
@@ -355,20 +355,46 @@ public class HandleClientThread extends Thread {
                     String streamId = command[2];
                     String mapKey = command[3];
                     String mapVal = command[4];
-                    int status = validateStreamId(streamKey,streamId);
-                    if( status == 1){
-                        HashMap<String, String> streamData = new HashMap<String, String>();
+                    List<String> lKeys = new ArrayList<String>(redisStreamData.keySet());
+                    if(streamId.contains("*")){
+                        if(lKeys.isEmpty()) streamId = "0-1";
+                        else{
+                            String lastId = redisStreamData.get(lKeys.getLast()).get("ID");
+                            String[] lastIdParts;
+                            String[] curIdParts;
+                            lastIdParts = lastId.split("-");
+                            curIdParts = streamId.split("-");
+                            if(Integer.parseInt(curIdParts[0]) > Integer.parseInt(lastIdParts[0])) {
+                                streamId = streamId.replaceFirst("\\*", "0");
+                            }
+
+                            else  {
+                                streamId = streamId.replaceFirst("\\*", String.valueOf(Integer.parseInt(lastIdParts[1])+1));
+                            }
+                        }
+                        LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
                         streamData.put("ID", streamId);
                         streamData.put(mapKey, mapVal);
                         redisStreamData.put(streamKey, streamData );
                         outputStream.write(("+"+streamId+"\r\n").getBytes());
                     }
-                    else if(status == 0) {
-                        outputStream.write(("-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n").getBytes());
-                    }
                     else{
-                        outputStream.write(("-ERR The ID specified in XADD must be greater than 0-0\r\n").getBytes());
+                        int status = validateStreamId(streamKey,streamId, lKeys);
+                        if( status == 1){
+                            LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
+                            streamData.put("ID", streamId);
+                            streamData.put(mapKey, mapVal);
+                            redisStreamData.put(streamKey, streamData );
+                            outputStream.write(("+"+streamId+"\r\n").getBytes());
+                        }
+                        else if(status == 0) {
+                            outputStream.write(("-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n").getBytes());
+                        }
+                        else if(status == -1){
+                            outputStream.write(("-ERR The ID specified in XADD must be greater than 0-0\r\n").getBytes());
+                        }
                     }
+
                 }
             }
         } catch (IOException e) {
@@ -379,9 +405,9 @@ public class HandleClientThread extends Thread {
 
     }
 
-    private int validateStreamId(String streamKey, String curStreamId) {
+    private int validateStreamId(String streamKey, String curStreamId, List<String> lKeys) {
         if(curStreamId.equals("0-0")) return -1;
-        List<String> lKeys = new ArrayList<String>(redisStreamData.keySet());
+
         if(lKeys.isEmpty()){
              return 1;
         }

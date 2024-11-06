@@ -8,6 +8,7 @@ import java.nio.file.PathMatcher;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
@@ -294,12 +295,63 @@ public class HandleClientThread extends Thread {
                     slaveSockets.add(clientSocket);
                 }
                 case "WAIT" -> {
+                    //TODO: COMPLETE THIS LATER
                     int connectedSlaves = slaveSockets.size();
+                    int reqSlavesToCheck = Integer.parseInt(command[2]);
+                    long expiryDuration = Instant.now().toEpochMilli() + Long.parseLong(command[2]);
+                    final Duration timeout = Duration.ofMillis(Long.parseLong(command[2]));
+                    if(commandsOffset!=0){
+                        int[] lol = new int[1];
+                        lol[0] = 0;
+                        int ackSlaves = 0;
+                        String slaveResponse;
+                        String[] slaveResponseDecoded;
+                        String[] slaveCommand = new String[3];
 
-                    outputStream.write((":"+connectedSlaves+"\r\n").getBytes());
+                        slaveCommand[0]= "REPLCONF";
+                        slaveCommand[1]= "GETACK";
+                        slaveCommand[2]= "*";
+
+                        for(Socket slaveSocket: slaveSockets){
+                            if(!slaveSocket.isClosed()){
+                                InputStream replicaInputStream = slaveSocket.getInputStream();
+                                OutputStream replicaOutputStream = slaveSocket.getOutputStream();
+                                replicaOutputStream.write(RedisProto.Encode(slaveCommand).getBytes());
+                                while(replicaInputStream.available()==0){
+
+                                }
+                                slaveResponse = new String(replicaInputStream.readNBytes(replicaInputStream.available()));
+                                slaveResponseDecoded = RedisProto.Decode(slaveResponse, lol);
+                                if(commandsOffset == Integer.parseInt(slaveResponseDecoded[2])) ackSlaves++;
+                            }
+                            if(Instant.now().toEpochMilli() > expiryDuration) break;
+                            if(ackSlaves>=reqSlavesToCheck) break;
+
+                        }
+                        outputStream.write((":"+ackSlaves+"\r\n").getBytes());
+                    }
+                    else{
+                        outputStream.write((":"+connectedSlaves+"\r\n").getBytes());
+                    }
+//                    while(Instant.now().toEpochMilli() <= expiryDuration){
+//
+//                    }
+//                    outputStream.write((":"+connectedSlaves+"\r\n").getBytes());
+                }
+                case "TYPE" -> {
+                    String key = command[1];
+                    if(redisDict.containsKey(key)){
+                        outputStream.write(("+string\r\n").getBytes());
+                    }
+                    else{
+                        outputStream.write(("+none\r\n").getBytes());
+                    }
+
                 }
             }
         } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 

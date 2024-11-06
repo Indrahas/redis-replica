@@ -20,7 +20,7 @@ public class RedisProto {
     public static String Encode(String Request){
         return "$" + Request.length() + "\r\n" + Request;
     }
-    public static String[] Decode(String Request) throws Exception {
+    public static String[] Decode(String Request, int[] endIndex) throws Exception {
         String Type = Request.substring(0, 1);
         Integer Index = Request.indexOf("\r\n");
         Integer Count = Integer.valueOf(Request.substring(1, Index));
@@ -34,6 +34,7 @@ public class RedisProto {
                 ToReturn[I] = Info.Content;
                 RemovedLength = Info.Offset + RemovedLength;
             }
+            endIndex[0] += RemovedLength+2;
             return ToReturn;
         } else if(Type.equals("$")) {
             return new String[]{RedisProto.DecodeHelper(Request.substring(Count + 2)).Content};

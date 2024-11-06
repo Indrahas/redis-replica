@@ -20,7 +20,7 @@ public class Main {
         }
         int masterIpIdx = Arrays.asList(args).indexOf("--replicaof");
         if(masterIpIdx != -1){
-            sendMasterHandshake(args[masterIpIdx+1], port);
+            sendMasterHandshake(args[masterIpIdx+1], port, args);
         }
         try {
             serverSocket = new ServerSocket(port);
@@ -52,7 +52,7 @@ public class Main {
         }
   }
 
-    private static void sendMasterHandshake(String arg, int port) {
+    private static void sendMasterHandshake(String arg, int port, String[] mainArgs) {
         String[] ipInfo = arg.split(" ");
         try {
             Socket socket = new Socket(ipInfo[0], Integer.parseInt(ipInfo[1]));
@@ -83,7 +83,9 @@ public class Main {
             commands.add("-1");
             outputStream.write( RedisProto.Encode(commands.toArray(new String[0])).getBytes() );
             printMasterResponse(inputStream);
+            printMasterResponse(inputStream);
             commands.clear();
+            new HandleClientThread(socket, mainArgs).start();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -14,7 +14,7 @@ public class HandleClientThread extends Thread {
     static HashMap<Object, List<String>> redisDict = new HashMap<Object, List<String>>();
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
-
+    int commandsOffset = 0;
     public HandleClientThread(Socket clientSocket, String[] args) {
         this.clientSocket = clientSocket;
         int numArgs = args.length;
@@ -122,10 +122,13 @@ public class HandleClientThread extends Thread {
                     inData = inputStream.readNBytes(inputStream.available());
 
                     String string = new String(inData);
-//                    System.out.println("STRING "+string);
+                    System.out.println("STRING "+string);
                     if(string.isEmpty()) continue;
-                    if(string.contains("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")){
-                        string = "*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n";
+                    if(string.contains("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n") && string.contains("REDIS0011")){
+//                        if(string.contains("PING")) continue;
+                        int startIdx = string.indexOf("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n");
+                        string = string.substring(startIdx);
+                        inData = string.getBytes();
                     }
                     else if(string.contains("REDIS0011")) continue;
                     String[] command = new String[0];
@@ -138,6 +141,8 @@ public class HandleClientThread extends Thread {
                             System.out.println("COMMAND 1 "+Arrays.toString(command));
                             processCommand(command);
                             sendCommandToSlave(command);
+                            commandsOffset += RedisProto.Encode(command).getBytes().length;
+                            System.out.println(Arrays.toString(command) + " DATA PROCESSED "+RedisProto.Encode(command).getBytes().length);
                         }
 
                     }else{
@@ -145,7 +150,11 @@ public class HandleClientThread extends Thread {
                         System.out.println("COMMAND 2 "+Arrays.toString(command));
                         processCommand(command);
                         sendCommandToSlave(command);
+                        commandsOffset += RedisProto.Encode(command).getBytes().length;
+                        System.out.println(Arrays.toString(command) + " DATA PROCESSED "+RedisProto.Encode(command).getBytes().length);
                     }
+
+//                    System.out.println("DATA PROCESSED "+inData.length);
 
                 }
             }
@@ -177,8 +186,17 @@ public class HandleClientThread extends Thread {
         try {
             outputStream = this.clientSocket.getOutputStream();
             switch (command[0]) {
-                case "PING" -> outputStream.write("+PONG\r\n".getBytes());
-                case "ECHO" -> outputStream.write(("+" + command[1] + "\r\n").getBytes());
+                case "PING" -> {
+                    if(configParams.get("role").equals("master")) {
+                        outputStream.write((RedisProto.Encode("PONG") + "\r\n").getBytes());
+                    }
+                }
+//                case "ECHO" -> outputStream.write(("+" + command[1] + "\r\n").getBytes());
+                case "ECHO" -> {
+                    if(configParams.get("role").equals("master")) {
+                        outputStream.write((RedisProto.Encode(command[1]) + "\r\n").getBytes());
+                    }
+                }
                 case "SET" -> {
                     String key = command[1];
                     String value = command[2];
@@ -256,7 +274,7 @@ public class HandleClientThread extends Thread {
                         ArrayList<String> ack = new ArrayList<>();
                         ack.add("REPLCONF");
                         ack.add("ACK");
-                        ack.add("0");
+                        ack.add(String.valueOf(commandsOffset));
                         String output = RedisProto.Encode(ack.toArray(new String[0]));
                         outputStream.write(output.getBytes());
 

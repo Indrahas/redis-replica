@@ -126,16 +126,6 @@ public class HandleClientThread extends Thread {
                     String[] command = new String[0];
                     int[] endIdx = new int[1];
                     endIdx[0] = 0;
-//                    System.out.println(string);
-//                    while(endIdx[0]!=string.length()){
-//                        System.out.println("END INDEX "+endIdx[0]);
-//                        System.out.println("STRING LENGTH "+string.length());
-//                        command = redisProto.Decode(string.substring(endIdx[0]), endIdx);
-//                        System.out.println(Arrays.toString(command));
-//                        processCommand(command);
-//                        sendCommandToSlave(command);
-//                    }
-//                    System.out.println("DONE "+endIdx[0]+" "+string.length());
 
                     if(string.startsWith("*")){
                         while(endIdx[0]!=string.length()){

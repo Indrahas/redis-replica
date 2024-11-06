@@ -12,7 +12,7 @@ import java.util.*;
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
     static HashMap<Object, List<String>> redisDict = new HashMap<Object, List<String>>();
-    static HashMap<String, HashMap<String, String>> redisStreamData = new HashMap<String, HashMap<String, String>>();
+    static LinkedHashMap<String, HashMap<String, String>> redisStreamData = new LinkedHashMap<String, HashMap<String, String>>();
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
@@ -355,12 +355,20 @@ public class HandleClientThread extends Thread {
                     String streamId = command[2];
                     String mapKey = command[3];
                     String mapVal = command[4];
-                    HashMap<String, String> streamData = new HashMap<String, String>();
-                    streamData.put("ID", streamId);
-                    streamData.put(mapKey, mapVal);
-                    redisStreamData.put(streamKey, streamData );
-
-                    outputStream.write(("+"+streamId+"\r\n").getBytes());
+                    int status = validateStreamId(streamKey,streamId);
+                    if( status == 1){
+                        HashMap<String, String> streamData = new HashMap<String, String>();
+                        streamData.put("ID", streamId);
+                        streamData.put(mapKey, mapVal);
+                        redisStreamData.put(streamKey, streamData );
+                        outputStream.write(("+"+streamId+"\r\n").getBytes());
+                    }
+                    else if(status == 0) {
+                        outputStream.write(("-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n").getBytes());
+                    }
+                    else{
+                        outputStream.write(("-ERR The ID specified in XADD must be greater than 0-0\r\n").getBytes());
+                    }
                 }
             }
         } catch (IOException e) {
@@ -369,6 +377,31 @@ public class HandleClientThread extends Thread {
             throw new RuntimeException(e);
         }
 
+    }
+
+    private int validateStreamId(String streamKey, String curStreamId) {
+        if(curStreamId.equals("0-0")) return -1;
+        List<String> lKeys = new ArrayList<String>(redisStreamData.keySet());
+        if(lKeys.isEmpty()){
+             return 1;
+        }
+        else{
+            String lastId = redisStreamData.get(lKeys.getLast()).get("ID");
+            return compareStreamId(lastId, curStreamId);
+        }
+
+    }
+
+    private int compareStreamId(String lastId, String curStreamId) {
+        String[] lastIdParts;
+        String[] curIdParts;
+        lastIdParts = lastId.split("-");
+        curIdParts = curStreamId.split("-");
+        if(Integer.parseInt(curIdParts[0]) > Integer.parseInt(lastIdParts[0])) return 1;
+        else if (Integer.parseInt(curIdParts[0]) < Integer.parseInt(lastIdParts[0])) return 0;
+        else if (Integer.parseInt(curIdParts[1]) > Integer.parseInt(lastIdParts[1])) return 1;
+
+        return 0;
     }
 
 

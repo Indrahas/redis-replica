@@ -293,6 +293,10 @@ public class HandleClientThread extends Thread {
                     outputStream.write(rdbFileContent);
                     slaveSockets.add(clientSocket);
                 }
+                case "WAIT" -> {
+
+                    outputStream.write((":0\r\n").getBytes());
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);

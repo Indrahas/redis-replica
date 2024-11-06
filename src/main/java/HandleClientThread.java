@@ -8,11 +8,11 @@ import java.nio.file.PathMatcher;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.*;
 
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
     static HashMap<Object, List<String>> redisDict = new HashMap<Object, List<String>>();
+    static HashMap<String, HashMap<String, String>> redisStreamData = new HashMap<String, HashMap<String, String>>();
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
@@ -343,10 +343,24 @@ public class HandleClientThread extends Thread {
                     if(redisDict.containsKey(key)){
                         outputStream.write(("+string\r\n").getBytes());
                     }
+                    if(redisStreamData.containsKey(key)){
+                        outputStream.write(("+stream\r\n").getBytes());
+                    }
                     else{
                         outputStream.write(("+none\r\n").getBytes());
                     }
+                }
+                case "XADD" -> {
+                    String streamKey = command[1];
+                    String streamId = command[2];
+                    String mapKey = command[3];
+                    String mapVal = command[4];
+                    HashMap<String, String> streamData = new HashMap<String, String>();
+                    streamData.put("ID", streamId);
+                    streamData.put(mapKey, mapVal);
+                    redisStreamData.put(streamKey, streamData );
 
+                    outputStream.write(("+"+streamId+"\r\n").getBytes());
                 }
             }
         } catch (IOException e) {

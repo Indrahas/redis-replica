@@ -356,7 +356,16 @@ public class HandleClientThread extends Thread {
                     String mapKey = command[3];
                     String mapVal = command[4];
                     List<String> lKeys = new ArrayList<String>(redisStreamData.keySet());
-                    if(streamId.contains("*")){
+                    if(!streamId.contains("-")){
+                        streamId = String.valueOf(Instant.now().toEpochMilli())+"-0";
+                        LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
+                        streamData.put("ID", streamId);
+                        streamData.put(mapKey, mapVal);
+                        redisStreamData.put(streamKey, streamData );
+//                        outputStream.write(("+"+streamId+"\r\n").getBytes());
+                        outputStream.write((RedisProto.Encode(streamId)+"\r\n").getBytes());
+                    }
+                    else if(streamId.contains("*")){
                         if(lKeys.isEmpty()) streamId = "0-1";
                         else{
                             String lastId = redisStreamData.get(lKeys.getLast()).get("ID");

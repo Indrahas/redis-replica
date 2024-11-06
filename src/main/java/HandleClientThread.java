@@ -130,7 +130,7 @@ public class HandleClientThread extends Thread {
                         string = string.substring(startIdx);
                         inData = string.getBytes();
                     }
-                    else if(string.contains("REDIS0011")) continue;
+                    else if(string.contains("REDIS0011") || string.contains("FULLRESYNC")) continue;
                     String[] command = new String[0];
                     int[] endIdx = new int[1];
                     endIdx[0] = 0;
@@ -142,7 +142,7 @@ public class HandleClientThread extends Thread {
                             processCommand(command);
                             sendCommandToSlave(command);
                             commandsOffset += RedisProto.Encode(command).getBytes().length;
-                            System.out.println(Arrays.toString(command) + " DATA PROCESSED "+RedisProto.Encode(command).getBytes().length);
+//                            System.out.println(Arrays.toString(command) + " DATA PROCESSED "+RedisProto.Encode(command).getBytes().length);
                         }
 
                     }else{
@@ -151,10 +151,9 @@ public class HandleClientThread extends Thread {
                         processCommand(command);
                         sendCommandToSlave(command);
                         commandsOffset += RedisProto.Encode(command).getBytes().length;
-                        System.out.println(Arrays.toString(command) + " DATA PROCESSED "+RedisProto.Encode(command).getBytes().length);
+//                        System.out.println(Arrays.toString(command) + " DATA PROCESSED "+RedisProto.Encode(command).getBytes().length);
                     }
 
-//                    System.out.println("DATA PROCESSED "+inData.length);
 
                 }
             }

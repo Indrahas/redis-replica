@@ -82,7 +82,7 @@ public class Main {
             commands.add("?");
             commands.add("-1");
             outputStream.write( RedisProto.Encode(commands.toArray(new String[0])).getBytes() );
-            printMasterResponse(inputStream);
+//            printMasterResponse(inputStream);
 //            printMasterResponse(inputStream);
             commands.clear();
             if(!socket.isClosed()){

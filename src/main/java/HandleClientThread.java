@@ -294,8 +294,9 @@ public class HandleClientThread extends Thread {
                     slaveSockets.add(clientSocket);
                 }
                 case "WAIT" -> {
+                    int connectedSlaves = slaveSockets.size();
 
-                    outputStream.write((":0\r\n").getBytes());
+                    outputStream.write((":"+connectedSlaves+"\r\n").getBytes());
                 }
             }
         } catch (IOException e) {

@@ -85,7 +85,10 @@ public class Main {
             printMasterResponse(inputStream);
             printMasterResponse(inputStream);
             commands.clear();
-            new HandleClientThread(socket, mainArgs).start();
+            if(socket.isConnected()){
+                new HandleClientThread(socket, mainArgs).start();
+            }
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -50,9 +50,9 @@ public class HandleClientThread extends Thread {
     }
     private void readRdbFile(){
         String path = configParams.get("dir")+"/"+configParams.get("dbfilename");
-        System.out.println(path);
+//        System.out.println(path);
         File file = new File(configParams.get("dir")+"/"+configParams.get("dbfilename"));
-        System.out.println(file.exists());
+//        System.out.println(file.exists());
         if(file.exists()){
             try {
                 RdbParser parser = new RdbParser(file);
@@ -122,7 +122,12 @@ public class HandleClientThread extends Thread {
                     inData = inputStream.readNBytes(inputStream.available());
 
                     String string = new String(inData);
+//                    System.out.println("STRING "+string);
                     if(string.isEmpty()) continue;
+                    if(string.contains("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")){
+                        string = "*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n";
+                    }
+                    else if(string.contains("REDIS0011")) continue;
                     String[] command = new String[0];
                     int[] endIdx = new int[1];
                     endIdx[0] = 0;
@@ -130,13 +135,14 @@ public class HandleClientThread extends Thread {
                     if(string.startsWith("*")){
                         while(endIdx[0]!=string.length()){
                             command = RedisProto.Decode(string.substring(endIdx[0]), endIdx);
-                            System.out.println(Arrays.toString(command));
+                            System.out.println("COMMAND 1 "+Arrays.toString(command));
                             processCommand(command);
                             sendCommandToSlave(command);
                         }
 
                     }else{
                         command = RedisProto.Decode(string,endIdx);
+                        System.out.println("COMMAND 2 "+Arrays.toString(command));
                         processCommand(command);
                         sendCommandToSlave(command);
                     }
@@ -154,9 +160,12 @@ public class HandleClientThread extends Thread {
         if(configParams.get("role").equals("master")){
             if(allowedCommands.contains(command[0]) && (!slaveSockets.isEmpty())){
                 for(Socket slaveSocket: slaveSockets){
-                    InputStream replicaInputStream = slaveSocket.getInputStream();
-                    OutputStream replicaOutputStream = slaveSocket.getOutputStream();
-                    replicaOutputStream.write(RedisProto.Encode(command).getBytes());
+                    if(!slaveSocket.isClosed()){
+                        InputStream replicaInputStream = slaveSocket.getInputStream();
+                        OutputStream replicaOutputStream = slaveSocket.getOutputStream();
+                        replicaOutputStream.write(RedisProto.Encode(command).getBytes());
+                    }
+
                 }
             }
 
@@ -243,8 +252,20 @@ public class HandleClientThread extends Thread {
 //                            }
                 }
                 case "REPLCONF" -> {
-                    String output = RedisProto.Encode("OK") + "\r\n";
-                    outputStream.write(output.getBytes());
+                    if(command[1].equals("GETACK")){
+                        ArrayList<String> ack = new ArrayList<>();
+                        ack.add("REPLCONF");
+                        ack.add("ACK");
+                        ack.add("0");
+                        String output = RedisProto.Encode(ack.toArray(new String[0]));
+                        outputStream.write(output.getBytes());
+
+                    }
+                    else{
+                        String output = RedisProto.Encode("OK") + "\r\n";
+                        outputStream.write(output.getBytes());
+                    }
+
                 }
                 case "PSYNC" -> {
                     String output = "+FULLRESYNC " + configParams.get("replId") + " "+ configParams.get("replOffset")+ "\r\n";

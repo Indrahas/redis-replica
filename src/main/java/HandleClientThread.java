@@ -18,7 +18,8 @@ public class HandleClientThread extends Thread {
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
     static ArrayList<String[]> quCommands = new ArrayList<>() ;
-    static boolean quStart = false;
+    static ArrayList<String> quResponses = new ArrayList<>() ;
+     boolean quStart = false;
     public HandleClientThread(Socket clientSocket, String[] args) {
         this.clientSocket = clientSocket;
         int numArgs = args.length;
@@ -143,7 +144,7 @@ public class HandleClientThread extends Thread {
                         while(endIdx[0]!=string.length()){
                             command = RedisProto.Decode(string.substring(endIdx[0]), endIdx);
                             System.out.println("COMMAND 1 "+Arrays.toString(command));
-                            if(quStart && !command[0].equals("EXEC") && !command[0].equals("GET")){
+                            if(quStart && !command[0].equals("EXEC")){
                                 quCommands.add(command);
                                 clientSocket.getOutputStream().write(("+QUEUED\r\n").getBytes());
                             }
@@ -159,7 +160,7 @@ public class HandleClientThread extends Thread {
                     }else{
                         command = RedisProto.Decode(string,endIdx);
                         System.out.println("COMMAND 2 "+Arrays.toString(command));
-                        if(quStart && !command[0].equals("EXEC") && !command[0].equals("GET")){
+                        if(quStart && !command[0].equals("EXEC")){
                             quCommands.add(command);
                             clientSocket.getOutputStream().write(("+QUEUED\r\n").getBytes());
                         }
@@ -204,15 +205,24 @@ public class HandleClientThread extends Thread {
             outputStream = this.clientSocket.getOutputStream();
             switch (command[0]) {
                 case "PING" -> {
-                    if(configParams.get("role").equals("master")) {
-                        outputStream.write((RedisProto.Encode("PONG") + "\r\n").getBytes());
+                    if(quStart) {
+                        quResponses.add((RedisProto.Encode("PONG") + "\r\n"));
                     }
+                    else{
+                        if(configParams.get("role").equals("master")) {
+                            outputStream.write((RedisProto.Encode("PONG") + "\r\n").getBytes());
+                        }
+                    }
+
                 }
-//                case "ECHO" -> outputStream.write(("+" + command[1] + "\r\n").getBytes());
                 case "ECHO" -> {
-                    if(configParams.get("role").equals("master")) {
-                        outputStream.write((RedisProto.Encode(command[1]) + "\r\n").getBytes());
+                    if(quStart) quResponses.add((RedisProto.Encode(command[1]) + "\r\n"));
+                    else{
+                        if(configParams.get("role").equals("master")) {
+                            outputStream.write((RedisProto.Encode(command[1]) + "\r\n").getBytes());
+                        }
                     }
+
                 }
                 case "SET" -> {
                     String key = command[1];
@@ -223,9 +233,13 @@ public class HandleClientThread extends Thread {
                         expiry = String.valueOf(expiryTime);
                     } else expiry = String.valueOf(Long.MAX_VALUE);
                     setRedisDict(key, value, expiry);
-                    if(configParams.get("role").equals("master")){
-                        outputStream.write(("+OK\r\n").getBytes());
+                    if(quStart) quResponses.add(RedisProto.Encode("OK")+"\r\n");
+                    else{
+                        if(configParams.get("role").equals("master")){
+                            outputStream.write(("+OK\r\n").getBytes());
+                        }
                     }
+
                 }
 
                 case "GET" -> {
@@ -237,12 +251,15 @@ public class HandleClientThread extends Thread {
                         Duration timeElapsed = Duration.between(startTime, now);
                         long expiryDuration = Long.parseLong(values.get(2));
                         if (Instant.now().toEpochMilli() <= expiryDuration) {
-                            outputStream.write((RedisProto.Encode(values.getFirst()) + "\r\n").getBytes());
+                            if(quStart) quResponses.add((RedisProto.Encode(values.getFirst()) + "\r\n"));
+                            else outputStream.write((RedisProto.Encode(values.getFirst()) + "\r\n").getBytes());
                         } else {
-                            outputStream.write(("$-1\r\n").getBytes());
+                            if(quStart) quResponses.add(("$-1\r\n"));
+                            else outputStream.write(("$-1\r\n").getBytes());
                         }
                     } else {
-                        outputStream.write(("$-1\r\n").getBytes());
+                        if(quStart) quResponses.add(("$-1\r\n"));
+                        else outputStream.write(("$-1\r\n").getBytes());
                     }
                 }
                 case "CONFIG" -> {
@@ -498,15 +515,18 @@ public class HandleClientThread extends Thread {
                             int curVal = Integer.parseInt(values.getFirst());
                             values.set(0, String.valueOf(curVal+1));
                             redisDict.put(key, values);
-                            outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
+                            if(quStart) quResponses.add(":"+(curVal+1)+"\r\n");
+                            else outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
                         }
                         else{
-                            outputStream.write(("-ERR value is not an integer or out of range\r\n").getBytes());
+                            if(quStart) quResponses.add("-ERR value is not an integer or out of range\r\n");
+                            else outputStream.write(("-ERR value is not an integer or out of range\r\n").getBytes());
                         }
 
                     } else {
                         setRedisDict(key,"1", String.valueOf(Long.MAX_VALUE) );
-                        outputStream.write((":1\r\n").getBytes());
+                        if(quStart) quResponses.add(":1\r\n");
+                        else outputStream.write((":1\r\n").getBytes());
                     }
                 }
                 case "MULTI" -> {
@@ -524,6 +544,9 @@ public class HandleClientThread extends Thread {
                                 sendCommandToSlave(quCommand);
                                 commandsOffset += RedisProto.Encode(quCommand).getBytes().length;
                             }
+                            String out = "*"+quCommands.size()+"\r\n"+String.join("",quResponses);
+                            outputStream.write(out.getBytes());
+                            quResponses.clear();
                             quCommands.clear();
                         }
 
@@ -534,6 +557,18 @@ public class HandleClientThread extends Thread {
                     }
 
                 }
+                case "DISCARD" -> {
+                    if(quStart){
+                        quCommands.clear();
+                        quStart = false;
+                        outputStream.write(("+OK\r\n").getBytes());
+
+                    }
+                    else{
+                        outputStream.write(("-ERR DISCARD without MULTI\r\n").getBytes());
+                    }
+                }
+
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -493,6 +493,25 @@ public class HandleClientThread extends Thread {
                         outputStream.write((":1\r\n").getBytes());
                     }
                 }
+                case "INCR" -> {
+                    String key = command[1];
+                    if (redisDict.containsKey(key)) {
+                        List<String> values = redisDict.get(key);
+                        if(isNumeric(values.getFirst())){
+                            int curVal = Integer.parseInt(values.getFirst());
+                            values.set(0, String.valueOf(curVal+1));
+                            redisDict.put(key, values);
+                            outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
+                        }
+                        else{
+                            outputStream.write(("-ERR value is not an integer or out of range\\r\\n").getBytes());
+                        }
+
+                    } else {
+                        setRedisDict(key,"1", String.valueOf(Long.MAX_VALUE) );
+                        outputStream.write((":1\r\n").getBytes());
+                    }
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

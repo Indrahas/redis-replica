@@ -509,7 +509,7 @@ public class HandleClientThread extends Thread {
                 }
                 case "MULTI" -> {
                     quStart = true;
-                    outputStream.write(("+OK\r\n").getBytes());
+                    outputStream.write(("+QUEUED\r\n").getBytes());
                 }
                 case "EXEC" -> {
                     if(quStart){

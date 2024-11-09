@@ -12,7 +12,7 @@ import java.util.*;
 public class HandleClientThread extends Thread {
     Socket clientSocket = null;
     static HashMap<Object, List<String>> redisDict = new HashMap<Object, List<String>>();
-    static LinkedHashMap<String, LinkedHashMap<String, String>> redisStreamData = new LinkedHashMap<String, LinkedHashMap<String, String>>();
+    static LinkedHashMap<Object, ArrayList<LinkedHashMap<String, String>>> redisStreamData = new LinkedHashMap<Object, ArrayList<LinkedHashMap<String, String>>>();
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
@@ -355,20 +355,18 @@ public class HandleClientThread extends Thread {
                     String streamId = command[2];
                     String mapKey = command[3];
                     String mapVal = command[4];
-                    List<String> lKeys = new ArrayList<String>(redisStreamData.keySet());
+                    List<Object> lKeys;
+                    lKeys = List.copyOf(redisStreamData.keySet());
                     if(!streamId.contains("-")){
                         streamId = String.valueOf(Instant.now().toEpochMilli())+"-0";
-                        LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
-                        streamData.put("ID", streamId);
-                        streamData.put(mapKey, mapVal);
-                        redisStreamData.put(streamKey, streamData );
-//                        outputStream.write(("+"+streamId+"\r\n").getBytes());
+                        addRedisStreamData(streamKey, streamId, mapKey, mapVal);
+
                         outputStream.write((RedisProto.Encode(streamId)+"\r\n").getBytes());
                     }
                     else if(streamId.contains("*")){
                         if(lKeys.isEmpty()) streamId = "0-1";
                         else{
-                            String lastId = redisStreamData.get(lKeys.getLast()).get("ID");
+                            String lastId = redisStreamData.get(lKeys.getLast()).getLast().get("ID");
                             String[] lastIdParts;
                             String[] curIdParts;
                             lastIdParts = lastId.split("-");
@@ -381,19 +379,14 @@ public class HandleClientThread extends Thread {
                                 streamId = streamId.replaceFirst("\\*", String.valueOf(Integer.parseInt(lastIdParts[1])+1));
                             }
                         }
-                        LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
-                        streamData.put("ID", streamId);
-                        streamData.put(mapKey, mapVal);
-                        redisStreamData.put(streamKey, streamData );
+                        addRedisStreamData(streamKey, streamId, mapKey, mapVal);
+
                         outputStream.write(("+"+streamId+"\r\n").getBytes());
                     }
                     else{
                         int status = validateStreamId(streamKey,streamId, lKeys);
                         if( status == 1){
-                            LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
-                            streamData.put("ID", streamId);
-                            streamData.put(mapKey, mapVal);
-                            redisStreamData.put(streamKey, streamData );
+                            addRedisStreamData(streamKey, streamId, mapKey, mapVal);
                             outputStream.write(("+"+streamId+"\r\n").getBytes());
                         }
                         else if(status == 0) {
@@ -405,23 +398,86 @@ public class HandleClientThread extends Thread {
                     }
 
                 }
+                case "XRANGE" -> {
+                    String streamKey = command[1];
+                    long startRange;
+                    long endRange;
+                    if(command.length == 4){
+                         startRange = Long.parseLong(command[2]);
+                         endRange = Long.parseLong(command[3]);
+                    } else if (command.length == 3) {
+                         startRange = Long.parseLong(command[2]);
+                         endRange = Long.MAX_VALUE;
+                    } else{
+                         startRange = 0;
+                         endRange = Long.MAX_VALUE;
+                    }
+
+                    ArrayList<LinkedHashMap<String, String>> streamData = redisStreamData.get(streamKey);
+                    ArrayList<LinkedHashMap<String, ArrayList<String>>> respData = new ArrayList<>();
+
+                    for (LinkedHashMap<String, String> curData : streamData) {
+                        String streamId = curData.get("ID");
+                        long timeId = Long.parseLong(streamId.split("-")[0]);
+
+                        curData.remove(streamId);
+                        ArrayList<String> keyValPair = new ArrayList<>();
+
+                        if (startRange <= timeId && timeId <= endRange) {
+                            for (String key : curData.keySet()) {
+                                keyValPair.add(key);
+                                keyValPair.add(curData.get(key));
+                            }
+                        }
+
+                        LinkedHashMap<String, ArrayList<String>> xrangeOut = new LinkedHashMap<>();
+                        xrangeOut.put(streamId, keyValPair);
+                        respData.add(xrangeOut);
+                    }
+
+                    StringBuilder respArray;
+                    respArray = new StringBuilder("*" + respData.size() + "\r\n");
+                    for (LinkedHashMap<String, ArrayList<String>> xrangeOut : respData) {
+                        respArray.append("*2\r\n");
+                        for (String key: xrangeOut.keySet()){
+                            respArray.append(RedisProto.Encode(key)).append("\r\n");
+                            respArray.append(RedisProto.Encode(xrangeOut.get(key).toArray(new String[0])));
+
+                        }
+                    }
+
+                    outputStream.write(respArray.toString().getBytes());
+                }
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
     }
 
-    private int validateStreamId(String streamKey, String curStreamId, List<String> lKeys) {
+    private void addRedisStreamData(String streamKey, String streamId, String mapKey, String mapVal) {
+        LinkedHashMap<String, String> streamData = new LinkedHashMap<String, String>();
+        streamData.put("ID", streamId);
+        streamData.put(mapKey, mapVal);
+        if(redisStreamData.containsKey(streamKey)){
+            redisStreamData.get(streamKey).add(streamData);
+        }
+        else{
+            ArrayList<LinkedHashMap<String, String>> newList = new ArrayList<>();
+            newList.add(streamData);
+            redisStreamData.put(streamKey, newList);
+        }
+
+    }
+
+    private int validateStreamId(String streamKey, String curStreamId, List<Object> lKeys) {
         if(curStreamId.equals("0-0")) return -1;
 
         if(lKeys.isEmpty()){
              return 1;
         }
         else{
-            String lastId = redisStreamData.get(lKeys.getLast()).get("ID");
+            String lastId = redisStreamData.get(lKeys.getLast()).getLast().get("ID");
             return compareStreamId(lastId, curStreamId);
         }
 

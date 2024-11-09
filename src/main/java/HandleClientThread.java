@@ -145,6 +145,7 @@ public class HandleClientThread extends Thread {
                             System.out.println("COMMAND 1 "+Arrays.toString(command));
                             if(quStart && !command[0].equals("EXEC") && !command[0].equals("GET")){
                                 quCommands.add(command);
+                                clientSocket.getOutputStream().write(("+QUEUED\r\n").getBytes());
                             }
                             else{
                                 processCommand(command);
@@ -160,6 +161,7 @@ public class HandleClientThread extends Thread {
                         System.out.println("COMMAND 2 "+Arrays.toString(command));
                         if(quStart && !command[0].equals("EXEC") && !command[0].equals("GET")){
                             quCommands.add(command);
+                            clientSocket.getOutputStream().write(("+QUEUED\r\n").getBytes());
                         }
                         else{
                             processCommand(command);
@@ -509,7 +511,7 @@ public class HandleClientThread extends Thread {
                 }
                 case "MULTI" -> {
                     quStart = true;
-                    outputStream.write(("+QUEUED\r\n").getBytes());
+                    outputStream.write(("+OK\r\n").getBytes());
                 }
                 case "EXEC" -> {
                     if(quStart){

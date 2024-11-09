@@ -478,12 +478,19 @@ public class HandleClientThread extends Thread {
                     String key = command[1];
                     if (redisDict.containsKey(key)) {
                         List<String> values = redisDict.get(key);
-                        int curVal = Integer.parseInt(values.getFirst());
-                        values.set(0, String.valueOf(curVal+1));
-                        redisDict.put(key, values);
-                        outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
+                        if(isNumeric(values.getFirst())){
+                            int curVal = Integer.parseInt(values.getFirst());
+                            values.set(0, String.valueOf(curVal+1));
+                            redisDict.put(key, values);
+                            outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
+                        }
+                        else{
+                            outputStream.write(("-ERR value is not an integer or out of range\\r\\n").getBytes());
+                        }
+
                     } else {
-                        outputStream.write(("$-1\r\n").getBytes());
+                        setRedisDict(key,"1", String.valueOf(Long.MAX_VALUE) );
+                        outputStream.write((":1\r\n").getBytes());
                     }
                 }
             }
@@ -572,6 +579,25 @@ public class HandleClientThread extends Thread {
         else if (Integer.parseInt(curIdParts[1]) > Integer.parseInt(lastIdParts[1])) return 1;
 
         return 0;
+    }
+
+    private static boolean isNumeric(String string) {
+        int intValue;
+
+        System.out.println(String.format("Parsing string: \"%s\"", string));
+
+        if(string == null || string.equals("")) {
+            System.out.println("String cannot be parsed, it is null or empty.");
+            return false;
+        }
+
+        try {
+            intValue = Integer.parseInt(string);
+            return true;
+        } catch (NumberFormatException e) {
+            System.out.println("Input String cannot be parsed to Integer.");
+        }
+        return false;
     }
 
 

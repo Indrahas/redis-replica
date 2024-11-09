@@ -2,6 +2,7 @@ import net.whitbeck.rdbparser.*;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
@@ -47,7 +48,7 @@ public class HandleClientThread extends Thread {
         values.add(value);
         values.add(curTime);
         values.add(expiry);
-        this.redisDict.put(key, values);
+        redisDict.put(key, values);
     }
     private void readRdbFile(){
         String path = configParams.get("dir")+"/"+configParams.get("dbfilename");
@@ -69,7 +70,7 @@ public class HandleClientThread extends Thread {
                         case EOF:
                             System.out.print("End of file. Checksum: ");
                             for (byte b : ((Eof)e).getChecksum()) {
-                                System.out.print(String.format("%02x", b & 0xff));
+                                System.out.printf("%02x", b & 0xff);
                             }
                             System.out.println();
                             System.out.println("------------");
@@ -78,7 +79,7 @@ public class HandleClientThread extends Thread {
                         case KEY_VALUE_PAIR:
                             System.out.println("Key value pair");
                             KeyValuePair kvp = (KeyValuePair)e;
-                            String key = new String(kvp.getKey(), "ASCII");
+                            String key = new String(kvp.getKey(), StandardCharsets.US_ASCII);
                             System.out.println("Key: " + key);
                             Long expireTime = kvp.getExpireTime();
                             String strExpireTime;
@@ -92,7 +93,7 @@ public class HandleClientThread extends Thread {
                             System.out.print("Values: ");
                             String strValue = "";
                             for (byte[] val : kvp.getValues()) {
-                                strValue = new String(val, "ASCII");
+                                strValue = new String(val, StandardCharsets.US_ASCII);
                                 System.out.print( strValue + " ");
                             }
                             setRedisDict(key, strValue, strExpireTime);
@@ -123,7 +124,7 @@ public class HandleClientThread extends Thread {
                     inData = inputStream.readNBytes(inputStream.available());
 
                     String string = new String(inData);
-                    System.out.println("STRING "+string);
+//                    System.out.println("STRING "+string);
                     if(string.isEmpty()) continue;
                     if(string.contains("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n") && string.contains("REDIS0011")){
 //                        if(string.contains("PING")) continue;
@@ -214,8 +215,8 @@ public class HandleClientThread extends Thread {
                 case "GET" -> {
                     String key = command[1];
                     Instant now = Instant.now();
-                    if (this.redisDict.containsKey(key)) {
-                        List<String> values = this.redisDict.get(key);
+                    if (redisDict.containsKey(key)) {
+                        List<String> values = redisDict.get(key);
                         Instant startTime = Instant.parse(values.get(1));
                         Duration timeElapsed = Duration.between(startTime, now);
                         long expiryDuration = Long.parseLong(values.get(2));
@@ -358,7 +359,7 @@ public class HandleClientThread extends Thread {
                     List<Object> lKeys;
                     lKeys = List.copyOf(redisStreamData.keySet());
                     if(!streamId.contains("-")){
-                        streamId = String.valueOf(Instant.now().toEpochMilli())+"-0";
+                        streamId = Instant.now().toEpochMilli() +"-0";
                         addRedisStreamData(streamKey, streamId, mapKey, mapVal);
 
                         outputStream.write((RedisProto.Encode(streamId)+"\r\n").getBytes());
@@ -471,7 +472,19 @@ public class HandleClientThread extends Thread {
                         long startSeq = Long.parseLong(command[2].split("-")[1]);
                         outputStream.write(("*1\r\n" + streamXRead(streamKey, startRange, startSeq)).getBytes());
                     }
+                }
 
+                case "INCR" -> {
+                    String key = command[1];
+                    if (redisDict.containsKey(key)) {
+                        List<String> values = redisDict.get(key);
+                        int curVal = Integer.parseInt(values.getFirst());
+                        values.set(0, String.valueOf(curVal+1));
+                        redisDict.put(key, values);
+                        outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
+                    } else {
+                        outputStream.write(("$-1\r\n").getBytes());
+                    }
                 }
             }
         } catch (Exception e) {

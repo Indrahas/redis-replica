@@ -493,7 +493,7 @@ public class HandleClientThread extends Thread {
                         outputStream.write((":1\r\n").getBytes());
                     }
                 }
-                case "INCR" -> {
+                case "MULTI" -> {
                     String key = command[1];
                     if (redisDict.containsKey(key)) {
                         List<String> values = redisDict.get(key);

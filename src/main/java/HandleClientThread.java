@@ -504,7 +504,7 @@ public class HandleClientThread extends Thread {
                             outputStream.write((":"+(curVal+1)+"\r\n").getBytes());
                         }
                         else{
-                            outputStream.write(("-ERR value is not an integer or out of range\\r\\n").getBytes());
+                            outputStream.write(("-ERR value is not an integer or out of range\r\n").getBytes());
                         }
 
                     } else {

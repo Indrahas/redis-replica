@@ -403,8 +403,11 @@ public class HandleClientThread extends Thread {
                     long startRange;
                     long endRange;
                     if(command.length == 4){
-                         startRange = Long.parseLong(command[2]);
-                         endRange = Long.parseLong(command[3]);
+                        if(command[2].equals("-")) startRange = 0;
+                        else startRange = Long.parseLong(command[2]);
+
+                        if(command[3].equals("+")) endRange = Long.MAX_VALUE;
+                        else endRange = Long.parseLong(command[3]);
                     } else if (command.length == 3) {
                          startRange = Long.parseLong(command[2]);
                          endRange = Long.MAX_VALUE;
@@ -448,11 +451,74 @@ public class HandleClientThread extends Thread {
 
                     outputStream.write(respArray.toString().getBytes());
                 }
+
+                case "XREAD" -> {
+                    if(command[1].equals("streams")){
+                        int numStreams = (command.length - 2) / 2;
+                        StringBuilder readOut;
+                        readOut = new StringBuilder("*"+numStreams+"\r\n");
+                        for(int i = 2; i<(numStreams+2); i++){
+                            String streamKey = command[i];
+                            long startRange = Long.parseLong(command[i+numStreams].split("-")[0]);
+                            long startSeq = Long.parseLong(command[i+numStreams].split("-")[1]);
+                            readOut.append(streamXRead(streamKey, startRange, startSeq));
+                        }
+                        outputStream.write(readOut.toString().getBytes());
+                    }
+                    else{
+                        String streamKey = command[1];
+                        long startRange = Long.parseLong(command[2].split("-")[0]);
+                        long startSeq = Long.parseLong(command[2].split("-")[1]);
+                        outputStream.write(("*1\r\n" + streamXRead(streamKey, startRange, startSeq)).getBytes());
+                    }
+
+                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
+    }
+
+    private StringBuilder streamXRead(String streamKey, long startRange, long startSeq) {
+        ArrayList<LinkedHashMap<String, String>> streamData = redisStreamData.get(streamKey);
+        ArrayList<LinkedHashMap<String, ArrayList<String>>> respData = new ArrayList<>();
+
+        for (LinkedHashMap<String, String> curData : streamData) {
+            String streamId = curData.get("ID");
+            long timeId = Long.parseLong(streamId.split("-")[0]);
+            long curSeq = Long.parseLong(streamId.split("-")[1]);
+
+            curData.remove("ID");
+            ArrayList<String> keyValPair = new ArrayList<>();
+
+            if ( (startRange < timeId) || ((startRange == timeId) && (startSeq < curSeq)) )
+            {
+                for (String key : curData.keySet()) {
+                    keyValPair.add(key);
+                    keyValPair.add(curData.get(key));
+                }
+            }
+
+            LinkedHashMap<String, ArrayList<String>> xrangeOut = new LinkedHashMap<>();
+            xrangeOut.put(streamId, keyValPair);
+            respData.add(xrangeOut);
+        }
+
+        StringBuilder respArray;
+        respArray = new StringBuilder("*2\r\n");
+        respArray.append(RedisProto.Encode(streamKey)).append("\r\n");
+        respArray.append("*").append(respData.size()).append("\r\n");
+        for (LinkedHashMap<String, ArrayList<String>> xrangeOut : respData) {
+            respArray.append("*2\r\n");
+            for (String key: xrangeOut.keySet()){
+                respArray.append(RedisProto.Encode(key)).append("\r\n");
+                respArray.append(RedisProto.Encode(xrangeOut.get(key).toArray(new String[0])));
+
+            }
+        }
+        return respArray;
+//        outputStream.write(respArray.toString().getBytes());
     }
 
     private void addRedisStreamData(String streamKey, String streamId, String mapKey, String mapVal) {

@@ -17,8 +17,8 @@ public class HandleClientThread extends Thread {
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
-    static ArrayList<String[]> quCommands = new ArrayList<>() ;
-    static ArrayList<String> quResponses = new ArrayList<>() ;
+     ArrayList<String[]> quCommands = new ArrayList<>() ;
+     ArrayList<String> quResponses = new ArrayList<>() ;
      boolean quStart = false;
     public HandleClientThread(Socket clientSocket, String[] args) {
         this.clientSocket = clientSocket;

@@ -144,7 +144,7 @@ public class HandleClientThread extends Thread {
                         while(endIdx[0]!=string.length()){
                             command = RedisProto.Decode(string.substring(endIdx[0]), endIdx);
                             System.out.println("COMMAND 1 "+Arrays.toString(command));
-                            if(quStart && !command[0].equals("EXEC")){
+                            if(quStart && !command[0].equals("EXEC")&& !command[0].equals("DISCARD")){
                                 quCommands.add(command);
                                 clientSocket.getOutputStream().write(("+QUEUED\r\n").getBytes());
                             }
@@ -160,7 +160,7 @@ public class HandleClientThread extends Thread {
                     }else{
                         command = RedisProto.Decode(string,endIdx);
                         System.out.println("COMMAND 2 "+Arrays.toString(command));
-                        if(quStart && !command[0].equals("EXEC")){
+                        if(quStart && !command[0].equals("EXEC") && !command[0].equals("DISCARD")){
                             quCommands.add(command);
                             clientSocket.getOutputStream().write(("+QUEUED\r\n").getBytes());
                         }
@@ -560,6 +560,7 @@ public class HandleClientThread extends Thread {
                 case "DISCARD" -> {
                     if(quStart){
                         quCommands.clear();
+                        quResponses.clear();
                         quStart = false;
                         outputStream.write(("+OK\r\n").getBytes());
 

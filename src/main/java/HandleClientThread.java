@@ -17,7 +17,7 @@ public class HandleClientThread extends Thread {
     HashMap<String, String> configParams = new HashMap<String, String>();
     static ArrayList<Socket> slaveSockets = new ArrayList<>();
     int commandsOffset = 0;
-    static Queue<String[]> quCommands;
+    static ArrayList<String[]> quCommands = new ArrayList<>() ;
     static boolean quStart = false;
     public HandleClientThread(Socket clientSocket, String[] args) {
         this.clientSocket = clientSocket;
@@ -143,7 +143,7 @@ public class HandleClientThread extends Thread {
                         while(endIdx[0]!=string.length()){
                             command = RedisProto.Decode(string.substring(endIdx[0]), endIdx);
                             System.out.println("COMMAND 1 "+Arrays.toString(command));
-                            if(quStart && !command[0].equals("EXEC")){
+                            if(quStart && !command[0].equals("EXEC") && !command[0].equals("GET")){
                                 quCommands.add(command);
                             }
                             else{
@@ -158,7 +158,7 @@ public class HandleClientThread extends Thread {
                     }else{
                         command = RedisProto.Decode(string,endIdx);
                         System.out.println("COMMAND 2 "+Arrays.toString(command));
-                        if(quStart && !command[0].equals("EXEC")){
+                        if(quStart && !command[0].equals("EXEC") && !command[0].equals("GET")){
                             quCommands.add(command);
                         }
                         else{
@@ -509,16 +509,22 @@ public class HandleClientThread extends Thread {
                 }
                 case "MULTI" -> {
                     quStart = true;
-                    outputStream.write(("+OK\r\n").getBytes());
+                    outputStream.write(("+QUEUED\r\n").getBytes());
                 }
                 case "EXEC" -> {
                     if(quStart){
-                        for (String[] quCommand : quCommands) {
-                            processCommand(quCommand);
-                            sendCommandToSlave(quCommand);
-                            commandsOffset += RedisProto.Encode(quCommand).getBytes().length;
+                        if(quCommands.isEmpty()){
+                            outputStream.write(("*0\r\n").getBytes());
                         }
-                        quCommands.clear();
+                        else{
+                            for (String[] quCommand : quCommands) {
+                                processCommand(quCommand);
+                                sendCommandToSlave(quCommand);
+                                commandsOffset += RedisProto.Encode(quCommand).getBytes().length;
+                            }
+                            quCommands.clear();
+                        }
+
                         quStart = false;
                     }
                     else{
